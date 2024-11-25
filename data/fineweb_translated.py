@@ -10,6 +10,7 @@ translated_fineweb Dataset (for srs pretraining)
 """
 import os
 import re
+import json
 import argparse
 import multiprocessing as mp
 import numpy as np

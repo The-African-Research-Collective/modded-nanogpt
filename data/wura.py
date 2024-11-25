@@ -21,7 +21,7 @@ import numpy as np
 from transformers import AutoTokenizer
 from typing import Union
 
-TOKENIZER_MODEL = "castorini/afriteva_large"
+TOKENIZER_MODEL = "castorini/afriteva_v2_large"
 LANGUAGES = {
     "Afrikaans": "afr",
     "Amharic": "amh",
@@ -74,11 +74,11 @@ def write_datafile(filename: str, toks: Union[np.ndarray]):
     header[1] = 1 # version
     header[2] = len(toks) # number of tokens after the 256*4 bytes of header (each 2 bytes as uint16)
     # construct the tokens numpy array, if not already
-    if not isinstance(toks, np.ndarray) or not toks.dtype == np.uint16:
+    if not isinstance(toks, np.ndarray) or not toks.dtype == np.uint32:
         # validate that no token exceeds a uint16
-        maxtok = 2**16
-        assert all(0 <= t < maxtok for t in toks), "token dictionary too large for uint16"
-        toks_np = np.array(toks, dtype=np.uint16)
+        maxtok = 2**32
+        assert all(0 <= t < maxtok for t in toks), "token dictionary too large for uint32"
+        toks_np = np.array(toks, dtype=np.uint32)
     else:
         toks_np = toks
 
@@ -131,9 +131,9 @@ def tokenize(doc):
     content = clean_document(doc["content"], )
     tokens.extend(tokenizer(headline + "\n" +content)['input_ids'])
     tokens_np = np.array(tokens)
-    assert (0 <= tokens_np).all() and (tokens_np < 2**16).all(), "token dictionary too large for uint16"
-    tokens_np_uint16 = tokens_np.astype(np.uint16)
-    return tokens_np_uint16
+    assert (0 <= tokens_np).all() and (tokens_np < 2**32).all(), "token dictionary too large for uint32"
+    tokens_np_uint32 = tokens_np.astype(np.uint32)
+    return tokens_np_uint32
 
 language_tokens = {}
 
@@ -148,7 +148,7 @@ if __name__ == '__main__':
 
                 shard_index = 0
 
-                all_tokens_np = np.empty((args.shard_size,), dtype=np.uint16)
+                all_tokens_np = np.empty((args.shard_size,), dtype=np.uint32)
                 token_count = 0
                 progress_bar = None
                 for tokens in pool.imap(tokenize, fw, chunksize=16):
@@ -184,9 +184,9 @@ if __name__ == '__main__':
                 if token_count != 0:
                     split = args.split
                     filename = os.path.join(DATA_CACHE_DIR, f"wura_{split}_{language}_{shard_index:06d}.bin")
-                    write_datafile(filename, all_tokens_np[:token_count])                
+                    write_datafile(filename, all_tokens_np[:token_count])  
+
+                # write token counts to a json file
+                with open(os.path.join(DATA_CACHE_DIR, "token_counts.json"), "w") as f:
+                    json.dump(language_tokens, f)              
                 
-# ------------------------------------------
-# write token counts to a json file
-with open(os.path.join(DATA_CACHE_DIR, "token_counts.json"), "w") as f:
-    json.dump(language_tokens, f)
